@@ -1,0 +1,317 @@
+---
+output: 
+html_document:
+code_folding: "hide"
+css: project/styles.css
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+<b><p style="color: rgb(226, 192, 78); font-size:26px" >
+
+Road Safety Authority<br>
+(Údarás Um Shábháilteacht Ar Bhóithre)
+</p></b>
+
+
+
+
+
+
+<left>
+![FigName](project/nct-car.png)
+
+</left>
+
+
+## **Introduction** 
+
+ 
+ 
+This report was developed by a group of 4 people Mudit Bhargava, Suraj Sankar Mandal, Athithan Thiruppathy Selvam and Sangamithra Varadarajan for the Mini Project to analyse on the outcome of the National Car Testing Services “NCT" testing results. The National Car Test (NCT) was introduced in Ireland in January 2000 as part of an EU Directive that makes car testing compulsory in all member states. 
+
+The analysis presented herein is based on the data from Road safety authority https://www.rsa.ie/RSA/Your-Vehicle/Your-Vehicle-/NCT-Statistics-/. There are datasets from 2013-2018 giving pass/fail rates by car testing center and by make and model of car. 
+In this article, we have examined the data and rendered reports in 2 categories.<br>
+Part I -  Fail & Pass Counts of Top 10 Makes for the year 2018, followed by components leading to Test failure is plotted to understand the most vulnerable parts in all the models of the Top10 Make. 
+(Note: Top 10 makes are identified based on the largest number of vehicles by distinctive make appeared for the test)
+Part II-  A trend Analysis is conducted on the passing percentiles of the vehicle's test center-wide 2015 till 2018 and the overall count of vehicles undergone NCT Test from 2015 to 2018.
+
+### **Import and Data Cleaning** 
+<div class = "row">
+  
+<div class = "col-md-4">
+
+#### _Read data file_
+
+* Using the dataset from https://www.rsa.ie/RSA/Your-Vehicle/Your-Vehicle-/NCT-Statistics-/.
+
+* Using dataset for the year 2015 to 2018.
+</div>
+
+<div class = "col-md-4">
+#### _Libraries used_
+
+* library(tidyverse)
+* library(dplyr)
+* library(plyr)
+* library(ggplot2)
+* library(tibble)
+* library(gganimate)
+* library(gifski)
+* library(png)
+* library(magick)
+* library(RColorBrewer)
+* library(cowplot)
+</div>
+
+
+### **Data Analysis** 
+
+
+#### _Pass and Fail for Top 10 Make and Components_
+
+
+```{r echo=FALSE,  collapse=TRUE,message=FALSE,out.width="80%" , dpi = 200}
+# Loading Libraries
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tibble)
+
+
+##reading the data
+make.model.dt <- read.csv("project/Make Model Data 2018.csv",skip=5,stringsAsFactors=FALSE,header = TRUE)
+
+
+# Data Cleaning
+colnames(make.model.dt) <- c("VehicleMake","VehicleModel","YearOfBirth","Total","PASS","PASS..","FAIL","FAIL..",
+                             "Vehicle.and.Safety.Equipment","Vehicle.and.Safety.Equipment..","Lighting.and.Electrical","Lighting.and.Electrical..",
+                             "Steering.and.Suspension","Steering.and.Suspension..","Braking.Equipment","Braking.Equipment..","Wheels.and.Tyres",
+                             "Wheels.and.Tyres..","Engine..Noise.and.Exhaust","Engine..Noise.and.Exhaust..","Chassis.and.Body","Chassis.and.Body..",
+                             "Side.Slip.Test","Side.Slip.Test..","Suspension.Test","Suspension.Test..","Light.test","Light.test..","Brake.Test","Brake.Test..",
+                             "Emmissions","Emmissions..","OTHER","OTHER..","Incompletable","Incompletable..")
+make.model.dt <- as_tibble(make.model.dt)
+
+# Selecting required Columns
+make.pf<- make.model.dt%>%select(VehicleMake,VehicleModel,PASS,FAIL,Total)
+
+##Data Transformation
+# Grouping Pass,Fail based on make
+make.sum.pf <- make.pf %>% group_by(VehicleMake) %>% 
+  summarise(tpass=sum(PASS),tfail=sum(FAIL),tcount=sum(Total))
+
+# New columns to show the proportion of pass,fail based on make
+make.sum.pf <- make.sum.pf %>% mutate(pass.perc = (tpass/tcount)*100,fail.perc = (tfail/tcount)*100)
+
+# Selecting top 10 based on Total makes
+top_10_make <-top_n(make.sum.pf,10,tcount)
+colnames(top_10_make) <- c("VehicleMake","Pass","Fail","Total","pass.perc","fail.perc")
+
+# Selecting top 10 based on pass percentage
+top_10_pass <-top_n(make.sum.pf,10,pass.perc)
+
+t1 <-gather(top_10_make, "Pass", "Fail", key=Results,value=Count,na.rm = FALSE,
+            factor_key = TRUE) 
+
+# Data Visualisation
+##Plotting the graph
+
+ggplot(data = t1)+geom_bar( mapping= aes(x= fct_reorder(VehicleMake,Count,.desc=TRUE),
+                                         y=Count,fill=Results), stat="identity",position=position_dodge())+
+  theme_light()+theme(axis.text.x = element_text(angle=90, vjust = 0.5),panel.border = element_rect(colour="black",fill=NA))+
+  labs(x="Top 10 Makes",y="Counts",title="Pass/Fail counts of Top 10 Makes ")+ scale_fill_manual(values=c("#FEB24C","#F03B20"))+scale_size(range = c(2, 11))
+
+#install.packages("RColorBrewer")
+library("RColorBrewer")
+# display.brewer.all()
+# display.brewer.pal(n = 2, name = 'YlOrRd')
+# brewer.pal(n = 3, name = "YlOrRd")
+
+
+```
+
+The chart above reflects the pass/fail count of  Top 10 makes in the 1st round of testing in the year 2018. It is observed that pass and failure count are proportionately almost equal. We can see more than 50 % pass rate for the Makes like Toyota, Audi, BMW, and Hyundai. Whereas  Makes like Volkswagen, Ford, Nissan, Opel, Renault, and Peugeot have low pass rates. To understand further a component level failure analysis is carried to discern which component of make is letting more failure.
+
+```{r echo=FALSE ,collapse=TRUE, message=FALSE, dpi = 200}
+
+##==================Graph2=================##
+
+## mutating the data for the second graph
+
+data.comp <- make.model.dt %>% select(Make=VehicleMake,Safety_Equipment=Vehicle.and.Safety.Equipment,
+                                      Lighting_Electricals=Lighting.and.Electrical,Steering=Steering.and.Suspension,Braking=Braking.Equipment,
+                                      Wheels=Wheels.and.Tyres,Engine=Engine..Noise.and.Exhaust,Chassis=Chassis.and.Body,
+                                      Side_Slipe=Side.Slip.Test,Suspension=Suspension.Test,Light=Light.test,Brake=Brake.Test,
+                                      Emission=Emmissions)
+
+# component wise summary
+
+data.comp.sum<-data.comp %>% group_by(Make) %>%
+  summarise(Safety_Equipment=sum(Safety_Equipment),Lighting_Electricals=sum(Lighting_Electricals),Steering=sum(Steering),Braking=sum(Braking),
+            Wheels=sum(Wheels),Engine=sum(Engine),Chassis=sum(Chassis),Side_Slipe=sum(Side_Slipe),Suspension=sum(Suspension),Light=sum(Light),Brake=sum(Brake),Emission=sum(Emission))
+
+
+# Filtering top10
+x<-data.comp.sum %>%select_all() %>% filter(Make %in% as.factor(top_10_make$VehicleMake))
+
+
+# converting counts to proportions
+t10.make.prop <-cbind(x[1],prop.table(as.matrix(x[-1]),margin=1))
+
+# Reshaping data
+x.prop <-gather(t10.make.prop, 'Safety_Equipment', 'Lighting_Electricals','Steering','Braking','Wheels','Engine','Chassis','Side_Slipe','Suspension','Light','Brake','Emission',key=Component,value=proportion,na.rm = FALSE,factor_key = TRUE) 
+x.prop$Make<-factor(x.prop$Make,levels=c("TOYOTA","VOLKSWAGEN","FORD","NISSAN","OPEL","AUDI","BMW","RENAULT","PEUGEOT","HYUNDAI"))
+
+library("cowplot")
+
+# Plot
+ggplot(data=x.prop)+geom_bar(aes(x=Make,y=proportion*100,fill=Component),stat="identity", position=position_dodge(),width=200,show.legend = TRUE,color="white")+
+  labs(x="Vehicle Makes",y="Components failure percent %",title="Component Failure Percentiles of Top 10 Makes",fill="Components")+ theme_light()+
+  theme(axis.text.x=element_blank(),panel.grid = element_blank(),axis.ticks.x=element_blank(),strip.background = element_rect(fill="#5160A9"))+
+  facet_wrap(~Make,nrow=2) +theme(panel.background = element_rect(fill=NA,color="black", size=0.5, 
+                                                              linetype="solid"))
+
+
+```
+
+From the component level graph above of Top 10 makes there’s a high rate of failure percentage due to the failure of the Lighting_Electircals component for all the 10 Makes. Other components like Wheels and Brake has caused failure to make like Audi and Toyota respectively. There are very rare instances where we have seen the failure due to chassis and side-slip. Hopefully, the failures in the 1st round have been addressed to pass the retest which is reflected in overall avg pass percentage of approximately 96% in the county wise graph(Graph3)
+
+#### _Pass and Fail based on County_
+From the charts below, the Count of Vehicles tested year on year from 2015  till 2018 has lowered but there is a slight increase in the pass percentile by 1% in most of the counties. Testing has been conducted in 2 rounds and its observed that only 50% of the vehicles passed in the 1st attempt and have undergone retest to arrive the mean final pass percentage of 95%.
+
+```{r echo=FALSE ,collapse=TRUE,message=FALSE  ,dpi = 200}
+
+#================Graph3==============#
+
+#2015 pass fail rate by centre
+#devtools::install_github('thomasp85/gganimate')
+#install.packages("devtools")
+
+library(gganimate)
+library(plotly)
+#install.packages("plotly")
+# To render animated file
+#install.packages("gifski")
+#install.packages("png")
+#install.packages("magick")
+library(gifski)
+library(png)
+library(magick)
+
+
+
+# Data loading & cleaning
+county.2015 <- read.csv("project/Pass Fail Stats 2015.csv",stringsAsFactors=FALSE,header = TRUE)
+county.2016 <- read.csv("project/Pass Fail Stats 2016.csv",stringsAsFactors=FALSE,header = TRUE)
+county.2017 <- read.csv("project/Pass Fail Stats 2017.csv",stringsAsFactors=FALSE,header = TRUE)
+county.2018 <- read.csv("project/Pass Fail Stats 2018.csv",stringsAsFactors=FALSE,header = TRUE)
+
+county.2015 <-county.2015%>% mutate(year=2015)
+county.2016 <-county.2016%>% mutate(year=2016)
+county.2017 <-county.2017%>% mutate(year=2017)
+county.2018 <-county.2018%>% mutate(year=2018)
+
+colnames(county.2015) <- c("County","Pass.Initial","Fail.Initial","Pass.Retest","Fail.Retest","Total.Pass","Year")
+colnames(county.2016) <- c("County","Pass.Initial","Fail.Initial","Pass.Retest","Fail.Retest","Total.Pass","Year")
+colnames(county.2017) <- c("County","Pass.Initial","Fail.Initial","Pass.Retest","Fail.Retest","Total.Pass","Year")
+colnames(county.2018) <- c("County","Pass.Initial","Fail.Initial","Pass.Retest","Fail.Retest","Total.Pass","Year")
+
+county.merge<- rbind(county.2015,county.2016,county.2017,county.2018)
+
+county.merge$County <- factor(county.merge$County)
+county.merge$Year <-as.integer(county.merge$Year)
+county.merge <-county.merge%>% mutate(Pass.per=round((Total.Pass/(Total.Pass+Fail.Retest))*100,2))
+county.merge <-county.merge%>% mutate(Pass.rnd1=round((Pass.Initial/(Total.Pass+Fail.Retest))*100,2))
+
+county.merge <-county.merge%>% mutate(VehicleCnt=Total.Pass+Fail.Retest)
+county.merge <-county.merge %>% filter(!County %in% c( "Total ","Total"))
+county.merge <-county.merge %>% mutate(County = recode_factor(County,
+                         "Greenhills (Exit 11,M50)" = "Greenhills",
+                         "Northpoint 1 (Exit 4, M50)" = "Northpoint 1 ",
+                         "Northpoint 2 (Exit 4, M50)" = "Northpoint 2 " ))
+#Animated Plot
+
+p<-ggplot(
+  county.merge, 
+  aes(x = County, y=Pass.per, size = Total.Pass, colour = as.factor(Year),text = paste("Year:", Year,"\n","Total Vehicles:",VehicleCnt,"\n",
+  "1st Round Pass %:",Pass.rnd1,"\n"," Final Pass %:",Pass.per))
+) + geom_point(show.legend = FALSE, alpha = 0.7) +
+  scale_color_viridis_d() +
+  scale_size(range = c(2, 9)) +
+  theme(axis.text.x = element_text(angle=90, vjust = 0.5),panel.border = element_rect(colour="black",fill=NA) )+
+  labs(title = "County Wise Pass Trend 2015-2019",x="Counties",y="Final Pass % of Vehicles")
+ggplotly(p, tooltip = c("x","text"))
+
+```
+
+A large number of vehicles of over 10,000 & above are tested in centers at Deansgrange, Northpoint 1 & Northpoint2, Fonthill& Cork-Little highland. The average pass percentage is seen to be around 95% regardless of the Test Centers in counties each year. County  Monaghan is having a high Failure count of roughly 8% from 2015 till 2017 and improved by 1 % in 2018. Highest Pass Percentile of around  98%observed at Derrybeg in 2017 & 2018&  at Cahirciveen in 2015 &2016 out of the 4000 Vehicles tested approximately. Graph 2, Clearly animates the trend of vehicles serviced for NCT Test, going down over the years from 2015 till 2018.
+
+
+```{r echo=FALSE ,collapse=TRUE,message=FALSE, dpi = 200}
+
+### -----------GRaph   4-----###
+
+## few other plots tried
+
+library(tidyverse)
+library(plyr)
+library(dplyr)
+
+# For Boy data set
+
+
+make.model.dt1 <- read.csv("project/Make Model Data 2018.csv",skip=5,stringsAsFactors=FALSE,header = TRUE)
+make.model.dt2 <- read.csv("project/Make Model Data 2017.csv",skip=5,stringsAsFactors=FALSE,header = TRUE)
+make.model.dt3 <- read.csv("project/Make Model Data 2016.csv",skip=5,stringsAsFactors=FALSE,header = TRUE)
+make.model.dt4 <- read.csv("project/Make Model Data 2015.csv",skip=6,stringsAsFactors=FALSE,header = TRUE)
+
+
+make.model.sm1 <- make.model.dt1 %>% summarise(Pass=sum(PASS),Fail=sum(FAIL))
+make.model.sm2 <- make.model.dt2 %>% summarise(Pass=sum(PASS),Fail=sum(FAIL))
+make.model.sm3 <- make.model.dt3 %>% summarise(Pass=sum(PASS),Fail=sum(FAIL))
+make.model.sm4 <- make.model.dt4 %>% summarise(Pass=sum(PASS),Fail=sum(FAIL))
+
+make.model.sm1$Year <- 2018
+make.model.sm2$Year <- 2017
+make.model.sm3$Year <- 2016
+make.model.sm4$Year <- 2015
+
+Result <-rbind(make.model.sm1,make.model.sm2,make.model.sm3,make.model.sm4)
+
+R1 <-gather(Result, "Pass", "Fail", key=res,value=Count,na.rm = FALSE, factor_key = TRUE)
+
+
+p2<-ggplot(R1, aes(Year, Count,fill=Year)) +
+  geom_col() +
+  scale_fill_distiller(palette = "Reds", direction = 1) +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    panel.grid.major.y = element_line(color = "white"),
+    panel.ontop = TRUE
+  )
+p2 + transition_states(Year, wrap = FALSE) +
+  shadow_mark()
+
+
+```
+
+### _Summary_ 
+Through this report, we have tried to understand the passing trend, Number of cars tested every year. Identified the Top 10 makes based on the largest count of vehicles and the component causing failures in these makes. It is found that the number of cars that are being tested is gradually decreasing over the years. Cars Make like Toyota, Volkswagen, Ford, and Nissan are the most used in 2018. Engine and chassis are the least failed components across all cars, whereas the Electrical, Steering, and Brakes are the most failing components.
+Approximately 95% of the vehicles are passing the NCT test in an average each year in the Final round although around 50% failure is observed in the first round of testing.
+
+#### _Declaration_
+
++ I, _**Mudit Bhargava**_ hereby declare that I took the accountability for style, design and full responsibility for the report making. Also, I have taken part to load, design and plot the graphs in part I for components leading to Test failure mentioned in the introductory. 
+
++ I, _**Sangamithra Varadarajan**_ hereby declare that I took the responsibility to load, design and plot the graphs in part II mentioned in the introductory. I have also co-worked in plotting other two graphs and Content Writing for this report.
+
++ I, _**Athithan Thiruppathy Selvam**_ hereby declare that I took the responsibility to load, design and plot the graphs in part II mentioned in the introductory.
+
++ I, _**Suraj Sankar Mandal**_ hereby declare that I took the responsibility to load, design and plot the graph for Top 10 make of cars in part-I mentioned in the introductory.
+
+
